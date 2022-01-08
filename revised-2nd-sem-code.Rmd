@@ -1,0 +1,835 @@
+---
+title: '''PREDICTING THE RISK OF HEART DISEASE : A CLASSIFICATION PROBLEM WITH LOGISTIC REGRESSION,
+  RANDOM FOREST, K NEAREST NEIGHBOURS(KNN) and NAIVE BAYES CLASSIFIER'''
+author: "AGNIVA KONAR, UPASYA BOSE, TIYASHA SAMANTA"
+date: "08/12/2021"
+output: html_document
+---
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(BSDA)
+library(car)
+library(carData)
+library(lmtest)
+library(MASS)
+library(nlme)
+library(readxl)
+library(ROCR)
+library(caTools)
+library(caret)
+library(randomForest)
+library(MLmetrics)
+library(ggplot2)
+library(e1071)
+library(qpcR)
+library(ROSE)
+library(class)
+library(ModelMetrics)
+```
+The necessary packages are installed.
+```{r}
+#importing the dataset from MS Excel and basic data manipulation
+
+dataset=read_excel(file.choose())
+View(dataset)
+a=dataset[,-c(3,6,8,13,17,19,21)]
+View(a)
+
+str(a) #giving the structure of the dataset
+
+a$Gender=ifelse(test=a$Gender==0,yes="F",no="M")
+a$Gender=as.factor(a$Gender)
+
+a$currentSmoker=ifelse(test=a$currentSmoker==1,yes="Y",no="N")
+a$currentSmoker=as.factor(a$currentSmoker)
+
+a$`BPMeds(new)`=ifelse(test=a$`BPMeds(new)`==1,yes="Y",no="N")
+a$`BPMeds(new)`=as.factor(a$`BPMeds(new)`)
+
+a$prevalentStroke=ifelse(test=a$prevalentStroke==1,yes="Y",no="N")
+a$prevalentStroke=as.factor(a$prevalentStroke)
+
+a$prevalentHyp=ifelse(test=a$prevalentHyp==1,yes="Y",no="N")
+a$prevalentHyp=as.factor(a$prevalentHyp)
+
+a$diabetes=ifelse(test=a$diabetes==1,yes="Y",no="N")
+a$diabetes=as.factor(a$diabetes)
+
+a$TenYearCHD=ifelse(test=a$TenYearCHD==1,yes="Y",no="N")
+a$TenYearCHD=as.factor(a$TenYearCHD)
+
+str(a)
+
+```
+The unnecessary columns are dropped from the dataset and the categorical variables are properly mentioned using if else and as.factor commands. This will help the machine to understand that these are categorical variables and not any other numeric data.
+```{r}
+#naming the variables
+
+y=a$TenYearCHD #response variable converted to factors
+
+#covariates
+x1=a$Gender 
+x2=a$age
+x3=as.factor(a$`education (new)`)
+x4=a$currentSmoker
+x5=a$`cigsPerDay(new)`
+x6=a$`BPMeds(new)`
+x7=a$prevalentStroke
+x8=a$prevalentHyp
+x9=a$diabetes
+x10=a$`totChol(new)`
+x11=a$sysBP
+x12=a$diaBP
+x13=a$`BMI(new)`
+x14=a$`heartRate(new)`
+x15=a$`glucose(new)`
+
+df=data.frame(y,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15)
+View(df)
+str(df)
+dim(df)
+summary(df)
+barplot(prop.table(table(df$y)),
+        col=rainbow(2),
+        ylim=c(0,1),
+        main="Class Distribution") #representing the class imbalance
+```
+
+We have renamed the variables and checked for data imbalance. As we can observe there is high data imbalance in our dataset. The values belonging to the N class is far higher as compared to that of the Y class.
+```{r}
+#dividing the dataset into training and testing datsets
+set.seed(123)
+ind<-sample(2,nrow(df),replace = TRUE,prob=c(0.7,0.3))
+train<-df[ind==1,]
+test<-df[ind==2,]
+
+table(train$y)
+prop.table(table(train$y)) #showing data imbalance in train data
+```
+The entire dataset is divided into training and testing dataset in the ratio of 70:30. Even after splitting of dataset, we can see that there is high margin of difference in proportion of classes.
+
+We have used over sampling, under sampling, both over and under sampling and synthetic data techniques to solve the issue of data imbalance. The data size is varied for different techniques.
+
+```{r}
+#oversampling
+over<-ovun.sample(y~.,data = train, method = "over",N=5032)$data
+dim(over)
+prop.table(table(over$y))
+
+barplot(prop.table(table(over$y)),
+        col=rainbow(2),
+        ylim=c(0,1),
+        main="Class Distribution")
+```
+
+As we can see that, that the huge margin of imbalance is solved. In this technique of over sampling, samples are chosen randomly with repitition from the non dominant class (Y in this case) until the data imbalance issue is resolved.
+```{r}
+#undersampling
+under<-ovun.sample(y~.,data = train,method = "under",N=902)$data
+dim(under)
+prop.table(table(under$y))
+
+barplot(prop.table(table(under$y)),
+        col=rainbow(2),
+        ylim=c(0,1),
+        main="Class Distribution")
+```
+
+As we can see that, that the huge margin of imbalance is solved. In this technique of under sampling, samples are chosen randomly with repitition from the dominant class (N in this case) until the data imbalance issue is resolved.
+```{r}
+#both over and under sampling
+both<-ovun.sample(y~.,data = train,method = "both",p=0.5,seed = 222,N=2967)$data
+dim(both)
+prop.table(table(both$y))
+
+barplot(prop.table(table(both$y)),
+        col=rainbow(2),
+        ylim=c(0,1),
+        main="Class Distribution")
+```
+
+As we can see that, that the huge margin of imbalance is solved. In this technique of both over and under sampling, samples are chosen randomly with repitition from both the dominant and non dominant classes until the data imbalance issue is resolved.
+```{r}
+#synthetic data generation
+syndata<-ROSE(y~.,data = train,N=4000,seed = 111)$data
+dim(syndata)
+prop.table(table(syndata$y))
+
+barplot(prop.table(table(syndata$y)),
+        col=rainbow(2),
+        ylim=c(0,1),
+        main="Class Distribution")
+```
+
+As we can see that, that the huge margin of imbalance is solved. In this technique of synthetic data generation, the machine studies the data completely and generates data on it's own until the data imbalance issue is resolved.
+
+Now that, the problem of data imbalance is solved, we can finally move on to our model building and compare the results between them.
+
+Let's begin with model building with our over sampling data using Logistic Regression
+```{r}
+#model building with oversampling data
+model1=glm(y~x1+x2+x3+x4+x5+x6+x7+x8+x9+x10+x11+x12+x13+x14+x15,data = over,family = binomial(link = "logit"))
+
+#checking for multicollinearity
+vif(model1) #no multicollinearity present
+```
+```{r}
+#obtaining ideal cutoff value
+trainpred<-predict(model1,over,type = "response")
+length(trainpred)
+
+ROCRPred<-prediction(trainpred,over$y)
+ROCRPerf<-performance(ROCRPred,"tpr","fpr")
+
+plot(ROCRPerf,colorize=TRUE,print.cutoffs.at=seq(0,1,0.05))
+#0.5 seems to be an ideal cutoff value
+```
+
+We can choose 0.5 as our optimum cutoff value as corresponding to 0.5, our true positive rate is a bit over 0.6 and the false positive rate is a bit around 0.3 which is very less. Choosing this point as our cutoff may give good results.
+
+Now, moving on to the final predictions and generating the confusion matrix for evaluation of our model.
+```{r}
+#performing prediction using test data
+testpredlr_over<-predict(model1,test,type = "response")
+length(testpredlr_over)
+
+testpredlr_over=ifelse(testpredlr_over>=0.5,yes = "Y",no="N")
+testpredlr_over=as.factor(testpredlr_over)
+
+#creating confusion matrix of the prediction
+ConfusionMatrix(testpredlr_over,test$y)
+
+acc_lr_over=Accuracy(testpredlr_over,test$y)*100
+prec_lr_over=Precision(test$y,testpredlr_over,positive = "Y")*100
+rec_lr_over=Recall(test$y,testpredlr_over,positive = "Y")*100
+spec_lr_over=Specificity(test$y,testpredlr_over,positive = "Y")*100
+f1_lr_over=F1_Score(test$y,testpredlr_over,positive = "Y")*100
+```
+Now, we have created a Logistic Regression model using the under sampling dataset.
+```{r}
+#model building with undersampling data
+model2=glm(y~x1+x2+x3+x4+x5+x6+x7+x8+x9+x10+x11+x12+x13+x14+x15,data = under,family = binomial(link = "logit"))
+
+#checking for multicollinearity
+vif(model2) #no multicollinearity present
+```
+
+```{r}
+#obtaining ideal cutoff value
+trainpred<-predict(model2,under,type = "response")
+length(trainpred)
+
+ROCRPred<-prediction(trainpred,under$y)
+ROCRPerf<-performance(ROCRPred,"tpr","fpr")
+
+plot(ROCRPerf,colorize=TRUE,print.cutoffs.at=seq(0,1,0.05))
+#0.5 seems to be an ideal cutoff value
+```
+
+We can choose 0.5 as our optimum cutoff value as corresponding to 0.5, our true positive rate is a bit over 0.6 and the false positive rate is a bit around 0.3 which is very less. Choosing this point as our cutoff may give good results.
+
+Now, moving on to the final predictions and generating the confusion matrix for evaluation of our model.
+```{r}
+#performing prediction using test data
+testpredlr_under<-predict(model2,test,type = "response")
+length(testpredlr_under)
+
+testpredlr_under=ifelse(testpredlr_under>=0.5,yes = "Y",no="N")
+testpredlr_under=as.factor(testpredlr_under)
+
+#creating confusion matrix of the prediction
+ConfusionMatrix(testpredlr_under,test$y)
+
+acc_lr_under=Accuracy(testpredlr_under,test$y)*100
+prec_lr_under=Precision(test$y,testpredlr_under,positive = "Y")*100
+rec_lr_under=Recall(test$y,testpredlr_under,positive = "Y")*100
+spec_lr_under=Specificity(test$y,testpredlr_under,positive = "Y")*100
+f1_lr_under=F1_Score(test$y,testpredlr_under,positive = "Y")*100
+```
+Now, we have created a Logistic Regression model using the both over and under sampling dataset.
+```{r}
+#model building with both over and under sampling data
+model3=glm(y~x1+x2+x3+x4+x5+x6+x7+x8+x9+x10+x11+x12+x13+x14+x15,data = both,family =binomial(link = "logit"))
+
+#checking for multicollinearity
+vif(model3) #no multicollinearity present
+```
+
+```{r}
+#obtaining ideal cutoff value
+trainpred<-predict(model3,both,type = "response")
+length(trainpred)
+
+ROCRPred<-prediction(trainpred,both$y)
+ROCRPerf<-performance(ROCRPred,"tpr","fpr")
+
+plot(ROCRPerf,colorize=TRUE,print.cutoffs.at=seq(0,1,0.05))
+#0.5 seems to be an ideal cutoff value
+```
+
+We can choose 0.5 as our optimum cutoff value as corresponding to 0.5, our true positive rate is a bit over 0.6 and the false positive rate is around 0.3 which is very less. Choosing this point as our cutoff may give good results.
+
+Now, moving on to the final predictions and generating the confusion matrix for evaluation of our model.
+```{r}
+#performing prediction using test data
+testpredlr_both<-predict(model3,test,type = "response")
+length(testpredlr_both)
+
+testpredlr_both=ifelse(testpredlr_both>=0.5,yes = "Y",no="N")
+testpredlr_both=as.factor(testpredlr_both)
+
+#creating confusion matrix of the prediction
+ConfusionMatrix(testpredlr_both,test$y)
+
+acc_lr_both=Accuracy(testpredlr_both,test$y)*100
+prec_lr_both=Precision(test$y,testpredlr_both,positive = "Y")*100
+rec_lr_both=Recall(test$y,testpredlr_both,positive = "Y")*100
+spec_lr_both=Specificity(test$y,testpredlr_both,positive = "Y")*100
+f1_lr_both=F1_Score(test$y,testpredlr_both,positive = "Y")*100
+```
+Now, we have created a Logistic Regression model using the synthetic data dataset.
+```{r}
+#model building with synthetically generated data
+model4=glm(y~x1+x2+x3+x4+x5+x6+x7+x8+x9+x10+x11+x12+x13+x14+x15,data = syndata,family = binomial(link = "logit"))
+
+#checking for multicollinearity
+vif(model4) #no multicollinearity present
+```
+The model deviance is definitely on the higher end but there is no multicollinearity present.
+```{r}
+#obtaining ideal cutoff value
+trainpred<-predict(model4,syndata,type = "response")
+length(trainpred)
+
+ROCRPred<-prediction(trainpred,syndata$y)
+ROCRPerf<-performance(ROCRPred,"tpr","fpr")
+
+plot(ROCRPerf,colorize=TRUE,print.cutoffs.at=seq(0,1,0.05))
+#0.5 seems to be an ideal cutoff value
+```
+
+We can choose 0.5 as our optimum cutoff value as corresponding to 0.5, our true positive rate is a bit over 0.6 and the false positive rate is around 0.3 which is very less. Choosing this point as our cutoff may give good results.
+
+Now, moving on to the final predictions and generating the confusion matrix for evaluation of our model.
+```{r}
+#performing prediction using test data
+testpredlr_syn<-predict(model4,test,type = "response")
+length(testpredlr_syn)
+
+testpredlr_syn=ifelse(testpredlr_syn>=0.5,yes = "Y",no="N")
+testpredlr_syn=as.factor(testpredlr_syn)
+
+#creating confusion matrix of the prediction
+ConfusionMatrix(testpredlr_syn,test$y)
+
+acc_lr_syn=Accuracy(testpredlr_syn,test$y)*100
+prec_lr_syn=Precision(test$y,testpredlr_syn,positive = "Y")*100
+rec_lr_syn=Recall(test$y,testpredlr_syn,positive = "Y")*100
+spec_lr_syn=Specificity(test$y,testpredlr_syn,positive = "Y")*100
+f1_lr_syn=F1_Score(test$y,testpredlr_syn,positive = "Y")*100
+```
+We have created our predictive model using Logistic Regression using the four datasets that solves the issue of data imbalance.
+
+Now, we move on to a non parametric approach called Random Forest.
+We begin with creating a predictive model using Random Forest with the over sampling dataset.
+```{r}
+set.seed(100)
+#building a primary RF model
+model5<-randomForest(y~.,data=over)
+model5
+```
+The OOB error estimate and the class errors are very less which indicates that our model fitting is very efficient. We can reach this conclusion from the confusion matrix as well.
+
+Now, we can check for our optimum value for ntree and mtry from the following graphs and tune the model accordingly if necessary.
+```{r}
+plot(model5)
+```
+
+From the above graph, we can see that the error is almost saturated for 500 trees and hence, 500 seems to be an appropriate choice for ntree.
+
+Now, let's check our optimum value for mtry.
+```{r}
+tuneRF(over[,-1],over[,1],stepFactor = 0.5,plot = TRUE,ntreeTry = 500,trace = TRUE,improve = 0.05)
+```
+
+We can observe that the appropriate choice of mtry turns out to be 3, because for this value the OOB error estimate is the least. But on further experimentation of the appropriate value of mtry from 3 to 6, we found out that OOB error estimate is least for mtry=4.
+
+Hence, we tune the parameters of our random forest model accordingly and then move on to performing the predictions.
+```{r}
+set.seed(100)
+model6<-randomForest(y~.,data = over,ntree=500,mtry=4, importance=TRUE,proximity=TRUE)
+model6
+```
+```{r}
+plot(model6)
+```
+This looks like a very efficient model.
+We can have a look about the important features in our predictive model.
+```{r}
+#Variable importance
+varImpPlot(model6,sort = TRUE) #this graph measures how pure the nodes are at the end of the tree without each variable
+importance(model6)
+varUsed(model6)
+```
+Now, let's move on to performing predictions and creating the confusion matrix.
+```{r}
+#prediction using test data
+testpredrf_over<-predict(model6,test)
+length(testpredrf_over)
+
+#confusion matrix
+ConfusionMatrix(testpredrf_over,test$y)
+
+acc_rf_over=Accuracy(testpredrf_over,test$y)*100
+prec_rf_over=Precision(test$y,testpredrf_over,positive = "Y")*100
+rec_rf_over=Recall(test$y,testpredrf_over,positive = "Y")*100
+spec_rf_over=Specificity(test$y,testpredrf_over,positive = "Y")*100
+f1_rf_over=F1_Score(test$y,testpredrf_over,positive = "Y")*100
+```
+This is a clear case of overfitting as the Random Forest model based on over sampling data isn't providing proper predictions and the precision is quite low.
+
+Now, we create a Random Forest model based on the under sampling dataset.
+```{r}
+set.seed(100)
+#building a primary RF model
+model7<-randomForest(y~.,data=under)
+model7
+```
+```{r}
+plot(model7)
+```
+
+Let's choose an optimum value of ntree by creating another Random Forest model using under sampling dataset, but this time changing the value of ntree to 1000.
+```{r}
+set.seed(100)
+model8<-randomForest(y~.,data=under,ntree=1000,mtry=3)
+model8
+plot(model8)
+```
+
+The ntree value is changed to 1000 but still the OOB error estimate doesnot saturate at all but it comes down a bit. We will try to minimise this error estimate by varying the mtry value.
+```{r}
+tuneRF(under[,-1],under[,1],stepFactor = 0.5,plot = TRUE,ntreeTry = 1000,trace = TRUE,improve = 0.05)
+```
+
+As we can observe, that even after varying the values of ntree and mtry, the OOB error estimate couldn't be reduced much. Hence, we are building a new model with ntree=1000 and mtry=1.
+```{r}
+set.seed(100)
+model9<-randomForest(y~.,data = under,ntree=1000,mtry=1)
+model9
+```
+```{r}
+plot(model9)
+```
+
+The OOB error estimate looks a bit better after tuning the parameters.
+We can have a look about the important features in our predictive model.
+```{r}
+#Variable importance
+varImpPlot(model9,sort = TRUE) #this graph measures how pure the nodes are at the end of the tree without each variable
+importance(model9)
+varUsed(model9)
+```
+
+Now, let's move on to performing predictions and creating the confusion matrix.
+```{r}
+#prediction using test data
+testpredrf_under<-predict(model9,test)
+length(testpredrf_under)
+
+#confusion matrix
+ConfusionMatrix(testpredrf_under,test$y)
+
+acc_rf_under=Accuracy(testpredrf_under,test$y)*100
+prec_rf_under=Precision(test$y,testpredrf_under,positive = "Y")*100
+rec_rf_under=Recall(test$y,testpredrf_under,positive = "Y")*100
+spec_rf_under=Specificity(test$y,testpredrf_under,positive = "Y")*100
+f1_rf_under=F1_Score(test$y,testpredrf_under,positive = "Y")*100
+```
+The model fitting with under sampling dataset was a bit below average.
+
+Let's move on to model fitting using Random Forest technique with both over and under sampling dataset.
+```{r}
+set.seed(100)
+#building a primary RF model
+model10<-randomForest(y~.,data=both)
+model10
+```
+The OOB error estimate and the class errors indicates that our model fitting is very efficient and we need to tune our parameters to reduce the error estimates if possible.
+
+Let's choose an optimum value of ntree.
+```{r}
+plot(model10)
+```
+
+The OOB error estimate gets saturated with 500 trees and thus, ntree=500 seems to be an optimum choice. Let's try to tune the mtry value if possible.
+```{r}
+tuneRF(both[,-1],both[,1],stepFactor = 0.5,plot = TRUE,ntreeTry = 500,trace = TRUE,improve = 0.05)
+```
+
+The value of mtry seems to be perfect for 3, as the value of OOB error estimate comes down. But on further experimentation with the value of mtry, we found out that the OOB error estimate comes down even mor for mtry=4. Hence, we tune the model parameters accordingly.
+```{r}
+set.seed(100)
+model11<-randomForest(y~.,data = both,ntree=500,mtry=4)
+model11
+```
+```{r}
+plot(model11)
+```
+
+We can have a look about the important features in our predictive model.
+```{r}
+#Variable importance
+varImpPlot(model11,sort = TRUE) #this graph measures how pure the nodes are at the end of the tree without each variable
+importance(model11)
+varUsed(model11)
+```
+
+Let's move on to our predictions using the testing datset and evaluate our model using confusion matrix.
+```{r}
+#prediction using test data
+testpredrf_both<-predict(model11,test)
+length(testpredrf_both)
+
+#confusion matrix
+ConfusionMatrix(testpredrf_both,test$y)
+
+acc_rf_both=Accuracy(testpredrf_both,test$y)*100
+prec_rf_both=Precision(test$y,testpredrf_both,positive = "Y")*100
+rec_rf_both=Recall(test$y,testpredrf_both,positive = "Y")*100
+spec_rf_both=Specificity(test$y,testpredrf_both,positive = "Y")*100
+f1_rf_both=F1_Score(test$y,testpredrf_both,positive = "Y")*100
+```
+Let's move on to model fitting using Random Forest technique with synthetic dataset.
+```{r}
+set.seed(100)
+#building a primary RF model
+model12<-randomForest(y~.,data=syndata)
+model12
+```
+```{r}
+plot(model12)
+```
+The OOB error estimate and the class errors indicates that our model fitting is not very efficient and we need to tune our parameters to reduce the error estimates.
+
+Let's choose an optimum value of ntree by creating another Random Forest model using under sampling dataset, but this time changing the value of ntree to 1000.
+```{r}
+set.seed(100)
+model13<-randomForest(y~.,data=syndata,ntree=1000,mtry=3)
+model13
+```
+The OOB error estimate comes down a bit when the value of ntree is fixed to 1000.
+```{r}
+plot(model13)
+```
+ 
+Let's try to tune the mtry value if possible.
+```{r}
+tuneRF(syndata[,-1],syndata[,1],stepFactor = 0.5,plot = TRUE,ntreeTry = 1000,trace = TRUE,improve = 0.05)
+```
+
+mtry=3 seems to be an appropriate choice. Hence, model13 is an appropriate model for synthetic dataset.
+We can have a look about the important features in our predictive model.
+```{r}
+#Variable importance
+varImpPlot(model13,sort = TRUE) #this graph measures how pure the nodes are at the end of the tree without each variable
+importance(model13)
+varUsed(model13)
+```
+
+Let's move on to our predictions using the testing datset and evaluate our model using confusion matrix.
+```{r}
+#prediction using test data
+testpredrf_syn<-predict(model13,test)
+length(testpredrf_syn)
+
+#confusion matrix
+ConfusionMatrix(testpredrf_syn,test$y)
+
+acc_rf_syn=Accuracy(testpredrf_syn,test$y)*100
+prec_rf_syn=Precision(test$y,testpredrf_syn,positive = "Y")*100
+rec_rf_syn=Recall(test$y,testpredrf_syn,positive = "Y")*100
+spec_rf_syn=Specificity(test$y,testpredrf_syn,positive = "Y")*100
+f1_rf_syn=F1_Score(test$y,testpredrf_syn,positive = "Y")*100
+```
+Now after building our predictive models using Logistic Regression and Random Forest, we move on to building the model using K Nearest Neighbors.
+
+Let's build a KNN model using the over sampling dataset.
+```{r}
+trControl <- trainControl(method = "repeatedcv", #repeated cross-validation
+                          number = 10,  # number of resampling iterations
+                          repeats = 3) #,  # sets of folds to for repeated cross-validation
+#classProbs = TRUE, summaryFunction = twoClassSummary)  # classProbs needed for ROC
+set.seed(1234)
+fit_over <- train(y~ ., 
+                   data = over,
+                   method = "knn",
+                   tuneLength = 20,
+                   trControl = trControl,
+                   preProc = c("center", "scale"))  # necessary task
+#model performance
+fit_over
+plot(fit_over)
+```
+
+Now, we perform the predictions and create the confusion matrix for evaluation of our model
+```{r}
+testpredknn_over <- predict(fit_over, newdata = test )
+length(testpredknn_over)
+
+#confusion matrix
+ConfusionMatrix(testpredknn_over,test$y)
+
+acc_knn_over=Accuracy(testpredknn_over,test$y)*100
+prec_knn_over=Precision(test$y,testpredknn_over,positive = "Y")*100
+rec_knn_over=Recall(test$y,testpredknn_over,positive = "Y")*100
+spec_knn_over=Specificity(test$y,testpredknn_over,positive = "Y")*100
+f1_knn_over=F1_Score(test$y,testpredknn_over,positive = "Y")*100
+```
+Now, let's build a KNN model using the under sampling dataset.
+```{r}
+set.seed(1234)
+fit_under <- train(y~ ., 
+                  data = under,
+                  method = "knn",
+                  tuneLength = 20,
+                  trControl = trControl,
+                  preProc = c("center", "scale"))  # necessary task
+#model performance
+fit_under
+plot(fit_under)
+```
+
+Now, we perform the predictions and create the confusion matrix for evaluation of our model
+```{r}
+testpredknn_under <- predict(fit_under, newdata = test )
+length(testpredknn_under)
+
+#confusion matrix
+ConfusionMatrix(testpredknn_under,test$y)
+
+acc_knn_under=Accuracy(testpredknn_under,test$y)*100
+prec_knn_under=Precision(test$y,testpredknn_under,positive = "Y")*100
+rec_knn_under=Recall(test$y,testpredknn_under,positive = "Y")*100
+spec_knn_under=Specificity(test$y,testpredknn_under,positive = "Y")*100
+f1_knn_under=F1_Score(test$y,testpredknn_under,positive = "Y")*100
+```
+Now, let's build a KNN model using the both over and under sampling dataset.
+```{r}
+set.seed(1234)
+fit_both <- train(y~ ., 
+                   data = both,
+                   method = "knn",
+                   tuneLength = 20,
+                   trControl = trControl,
+                   preProc = c("center", "scale"))  # necessary task
+#model performance
+fit_both
+plot(fit_both)
+```
+
+Now, we perform the predictions and create the confusion matrix for evaluation of our model
+```{r}
+testpredknn_both <- predict(fit_both, newdata = test )
+length(testpredknn_both)
+
+#confusion matrix
+ConfusionMatrix(testpredknn_both,test$y)
+
+acc_knn_both=Accuracy(testpredknn_both,test$y)*100
+prec_knn_both=Precision(test$y,testpredknn_both,positive = "Y")*100
+rec_knn_both=Recall(test$y,testpredknn_both,positive = "Y")*100
+spec_knn_both=Specificity(test$y,testpredknn_both,positive = "Y")*100
+f1_knn_both=F1_Score(test$y,testpredknn_both,positive = "Y")*100
+```
+Now, let's build an KNN model using the synthetic dataset.
+```{r}
+set.seed(1234)
+fit_synd <- train(y~ ., 
+                  data = syndata,
+                  method = "knn",
+                  tuneLength = 20,
+                  trControl = trControl,
+                  preProc = c("center", "scale"))  # necessary task
+#model performance
+fit_synd
+plot(fit_synd)
+```
+
+Now, we perform the predictions and create the confusion matrix for evaluation of our model
+```{r}
+testpredknn_syn <- predict(fit_synd, newdata = test )
+length(testpredknn_syn)
+
+#confusion matrix
+ConfusionMatrix(testpredknn_syn,test$y)
+
+acc_knn_syn=Accuracy(testpredknn_syn,test$y)*100
+prec_knn_syn=Precision(test$y,testpredknn_syn,positive = "Y")*100
+rec_knn_syn=Recall(test$y,testpredknn_syn,positive = "Y")*100
+spec_knn_syn=Specificity(test$y,testpredknn_syn,positive = "Y")*100
+f1_knn_syn=F1_Score(test$y,testpredknn_syn,positive = "Y")*100
+```
+Now, we move on to the next classifier and that is Naive Bayes Classifier. Let's build our classification model using Naive Bayes Classifier with over sampling dataset.
+```{r}
+nb_overfit=naiveBayes(y~.,data=over)
+nb_overfit
+summary(nb_overfit)
+```
+Now, we perform the predictions and create the confusion matrix for evaluation of our model
+```{r}
+testprednb_over=predict(nb_overfit,newdata = test)
+length(testprednb_over)
+
+#confusion matrix
+ConfusionMatrix(testprednb_over,test$y)
+
+acc_nb_over=Accuracy(testprednb_over,test$y)*100
+prec_nb_over=Precision(test$y,testprednb_over,positive = "Y")*100
+rec_nb_over=Recall(test$y,testprednb_over,positive = "Y")*100
+spec_nb_over=Specificity(test$y,testprednb_over,positive = "Y")*100
+f1_nb_over=F1_Score(test$y,testprednb_over,positive = "Y")*100
+```
+Let's build a model with Naive Bayes classifier using under sampling dataset.
+```{r}
+nb_underfit=naiveBayes(y~.,data=under)
+nb_underfit
+summary(nb_underfit)
+```
+Let's perform predictions and evaluate our model using confusion matrix.
+```{r}
+testprednb_under=predict(nb_underfit,newdata = test)
+length(testprednb_under)
+
+#confusion matrix
+ConfusionMatrix(testprednb_under,test$y)
+
+acc_nb_under=Accuracy(testprednb_under,test$y)*100
+prec_nb_under=Precision(test$y,testprednb_under,positive = "Y")*100
+rec_nb_under=Recall(test$y,testprednb_under,positive = "Y")*100
+spec_nb_under=Specificity(test$y,testprednb_under,positive = "Y")*100
+f1_nb_under=F1_Score(test$y,testprednb_under,positive = "Y")*100
+```
+Let's build a model with Naive Bayes classifier using both over and under sampling dataset.
+```{r}
+nb_bothfit=naiveBayes(y~.,data=both)
+nb_bothfit
+summary(nb_bothfit)
+```
+Let's perform predictions and evaluate our model using confusion matrix.
+```{r}
+testprednb_both=predict(nb_bothfit,newdata = test)
+length(testprednb_both)
+
+#confusion matrix
+ConfusionMatrix(testprednb_both,test$y)
+
+acc_nb_both=Accuracy(testprednb_both,test$y)*100
+prec_nb_both=Precision(test$y,testprednb_both,positive = "Y")*100
+rec_nb_both=Recall(test$y,testprednb_both,positive = "Y")*100
+spec_nb_both=Specificity(test$y,testprednb_both,positive = "Y")*100
+f1_nb_both=F1_Score(test$y,testprednb_both,positive = "Y")*100
+```
+Let's build a model with Naive Bayes classifier using synthetic dataset.
+```{r}
+nb_syndfit=naiveBayes(y~.,data=syndata)
+nb_syndfit
+summary(nb_syndfit)
+```
+Let's perform predictions and evaluate our model using confusion matrix.
+```{r}
+testprednb_syn=predict(nb_syndfit,newdata = test)
+length(testprednb_syn)
+
+#confusion matrix
+ConfusionMatrix(testprednb_syn,test$y)
+
+acc_nb_syn=Accuracy(testprednb_syn,test$y)*100
+prec_nb_syn=Precision(test$y,testprednb_syn,positive = "Y")*100
+rec_nb_syn=Recall(test$y,testprednb_syn,positive = "Y")*100
+spec_nb_syn=Specificity(test$y,testprednb_syn,positive = "Y")*100
+f1_nb_syn=F1_Score(test$y,testprednb_syn,positive = "Y")*100
+```
+Now that we have all the necessary information regarding the predictions of different classification techniques, all we need to do is to compare the different techniques based on different solutions for solving data imbalance.
+```{r}
+#oversampling performance evaluations (in %)
+accuracy=c(acc_lr_over,acc_rf_over,acc_knn_over,acc_nb_over)
+precision=c(prec_lr_over,prec_rf_over,prec_knn_over,prec_nb_over)
+recall=c(rec_lr_over,rec_rf_over,rec_knn_over,rec_nb_over)
+specificity=c(spec_lr_over,spec_rf_over,spec_knn_over,spec_nb_over)
+f1score=c(f1_lr_over,f1_rf_over,f1_knn_over,f1_nb_over)
+
+oversampling_evaluations=data.frame(accuracy,precision,recall,specificity,f1score)
+rownames(oversampling_evaluations)=c("Logistic Regression","Random Forest","KNN","Naive Bayes")
+oversampling_evaluations
+```
+```{r}
+performance1=as.matrix(oversampling_evaluations)
+
+barplot(performance1,beside=TRUE,col=rainbow(4),ylim=c(0,100),ylab = "Performance")
+legend("topright",legend = c("Logistic Regression","Random Forest","KNN","Naive Bayes"),cex =0.7,fill = rainbow(4))
+```
+
+The precision of each and every technique came down quite a bit thus affecting the F1 Score as well. But based on the other performance measures, Logistic Regression had a very decent overall scores and we can say, that it's the based among all the classification techniques.
+
+```{r}
+#undersampling performance evaluations
+accuracy=c(acc_lr_under,acc_rf_under,acc_knn_under,acc_nb_under)
+precision=c(prec_lr_under,prec_rf_under,prec_knn_under,prec_nb_under)
+recall=c(rec_lr_under,rec_rf_under,rec_knn_under,rec_nb_under)
+specificity=c(spec_lr_under,spec_rf_under,spec_knn_under,spec_nb_under)
+f1score=c(f1_lr_under,f1_rf_under,f1_knn_under,f1_nb_under)
+
+undersampling_evaluations=data.frame(accuracy,precision,recall,specificity,f1score)
+rownames(undersampling_evaluations)=c("Logistic Regression","Random Forest","KNN","Naive Bayes")
+undersampling_evaluations
+```
+```{r}
+performance2=as.matrix(undersampling_evaluations)
+
+barplot(performance2,beside=TRUE,col=rainbow(4),ylim=c(0,100),ylab = "Performance")
+legend("topright",legend = c("Logistic Regression","Random Forest","KNN","Naive Bayes"),cex =0.7,fill = rainbow(4))
+```
+
+Once again, the value of precision is very low, thus affecting the value of F1 Score as well. But based on the other performance measures, Logistic Regression had a very decent overall scores and we can say, that it's the based among all the classification techniques.
+
+```{r}
+#both over and undersampling performance evaluation
+accuracy=c(acc_lr_both,acc_rf_both,acc_knn_both,acc_nb_both)
+precision=c(prec_lr_both,prec_rf_both,prec_knn_both,prec_nb_both)
+recall=c(rec_lr_both,rec_rf_both,rec_knn_both,rec_nb_both)
+specificity=c(spec_lr_both,spec_rf_both,spec_knn_both,spec_nb_both)
+f1score=c(f1_lr_both,f1_rf_both,f1_knn_both,f1_nb_both)
+
+bothsampling_evaluations=data.frame(accuracy,precision,recall,specificity,f1score)
+rownames(bothsampling_evaluations)=c("Logistic Regression","Random Forest","KNN","Naive Bayes")
+bothsampling_evaluations
+```
+```{r}
+performance3=as.matrix(bothsampling_evaluations)
+
+barplot(performance3,beside=TRUE,col=rainbow(4),ylim=c(0,100),ylab = "Performance")
+legend("topright",legend = c("Logistic Regression","Random Forest","KNN","Naive Bayes"),cex =0.7,fill = rainbow(4))
+```
+
+Once again, the value of precision is very low, thus affecting the value of F1 Score as well. But based on the other performance measures, Logistic Regression had a very decent overall scores and we can say, that it's the based among all the classification techniques.
+
+```{r}
+#synthetic data performance evaluation
+accuracy=c(acc_lr_syn,acc_rf_syn,acc_knn_syn,acc_nb_syn)
+precision=c(prec_lr_syn,prec_rf_syn,prec_knn_syn,prec_nb_syn)
+recall=c(rec_lr_syn,rec_rf_syn,rec_knn_syn,rec_nb_syn)
+specificity=c(spec_lr_syn,spec_rf_syn,spec_knn_syn,spec_nb_syn)
+f1score=c(f1_lr_syn,f1_rf_syn,f1_knn_syn,f1_nb_syn)
+
+syndata_evaluations=data.frame(accuracy,precision,recall,specificity,f1score)
+rownames(syndata_evaluations)=c("Logistic Regression","Random Forest","KNN","Naive Bayes")
+syndata_evaluations
+```
+```{r}
+performance4=as.matrix(syndata_evaluations)
+
+barplot(performance4,beside=TRUE,col=rainbow(4),ylim=c(0,100),ylab = "Performance")
+legend("topright",legend = c("Logistic Regression","Random Forest","KNN","Naive Bayes"),cex =0.7,fill = rainbow(4))
+```
+
+Once again, the value of precision is very low, thus affecting the value of F1 Score as well. But based on the other performance measures, Logistic Regression had a very decent overall scores and we can say, that it's the based among all the classification techniques.
